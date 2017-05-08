@@ -7,23 +7,28 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 # Use Latex font
-plt.rc('text', usetex=True)
-plt.rc('font', family='serif')
+# plt.rc('text', usetex=True)
+# plt.rc('font', family='serif')
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--logs', nargs='+', type=list, default=[
-        'result_0051_std/logs/inception_score',
-        'result_0056_res_n1/logs/inception_score',
-        'result_0056_res_n2/logs/inception_score',
-        'result_0056_res_n3/logs/inception_score',
-        'result_0056_res_n5/logs/inception_score',
-        #'result_0054_mbd_std/logs/inception_score',
-        #'result_0055_mbd_res_n0/logs/inception_score',
-        #'result_0055_mbd_res_n2/logs/inception_score',
-        #'result_0055_mbd_res_n3/logs/inception_score',
-        #'result_0055_mbd_res_n5/logs/inception_score',
+        #'result_0001_n1_mbd/logs/inception_score',
+        #'result_0001_n1_mbd_no_shortcut/logs/inception_score'
+        #'result_0010_n1_unrolled/logs/inception_score',
+        #'result_0010_n2_unrolled/logs/inception_score',
+        #'result_0010_n1_unrolled_k10/logs/inception_score',
+        #'result_0010_n2_unrolled_k10/logs/inception_score',
+
+        #'result_0011_normal/logs/inception_score',
+        #'result_0011_res_g_normal_d/logs/inception_score',
+        #'result_0011_res2_g_normal_d/logs/inception_score',
+        # 2017 04 20
+        'result_tmp/logs/inception_score',
+        'result_tmp_deepG/logs/inception_score',
+        'result_tmp_deeperG/logs/inception_score',
+        'result_tmp_deeperG2/logs/inception_score'
         ])
     parser.add_argument('--out', type=str, default='inception_score_comparison.pdf')
     parser.add_argument('--keys', nargs='+', type=str, default=['inception_score_mean', 'inception_score_std'])
@@ -58,6 +63,7 @@ def plot_logs(filename, keys, labels, logs, limit=None):
             stds = stds[:limit]
 
         print('Log:', label)
+        print(means)
 
         highest_i = numpy.argmax(means)
         highest_mean = means[highest_i]
@@ -67,6 +73,7 @@ def plot_logs(filename, keys, labels, logs, limit=None):
         print(highest_mean_std)
 
         assert(len(means) == len(stds))
+        """
 
         if 'no_mbd' in label or 'mbd' not in label:
             linestyle = '-'
@@ -105,14 +112,16 @@ def plot_logs(filename, keys, labels, logs, limit=None):
 
         if uses_mbd:
             label += ', MBD'
+        """
 
         # plt.errorbar(range(len(means)), means, yerr=stds, fmt='-o', markersize=2, label=label)
-        plt.plot(range(len(means)), means, linestyle, linewidth=linewidth, label=label, color=color)
+        # plt.plot(range(len(means)), means, linestyle, linewidth=linewidth, label=label, color=color)
+        plt.plot(range(len(means)), means, label=label)
 
     ax = plt.gca()
     ax.yaxis.grid(clip_on=False, linestyle=':')
     ax.legend(loc=4)
-    ax.set_ylim([1.5, 8])
+    ax.set_ylim([1.5, 10])
     if limit is not None:
         ax.set_xlim([0, limit])
     plt.ylabel('Inception Score')

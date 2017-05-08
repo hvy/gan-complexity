@@ -5,7 +5,8 @@ import chainer
 from chainer import training, reporter, cuda, serializers
 from chainer.training import extension
 
-from lib import inception_score, plot
+from lib import inception_score
+from lib import plot
 
 
 class GeneratorSample(extension.Extension):
@@ -30,9 +31,17 @@ class GeneratorSample(extension.Extension):
 
 
 class InceptionScore(extension.Extension):
-    def __init__(self, model_filename='inception_score.model', n_samples=10000,  gpu=-1):
-        model = inception_score.Inception()
-        serializers.load_hdf5(model_filename, model)
+    def __init__(self, model_cls,  model_filename, n_samples, compression, gpu=-1):
+
+        model = model_cls()
+
+        if compression == 'hdf5':
+            serializers.load_hdf5(model_filename, model)
+        elif compression == 'npz':
+            serializers.load_npz(model_filename, model)
+        else:
+            raise ValueError('Unknown model compression format {}'.format(compression))
+
         self._model = model
         self.n_samples = n_samples
 
