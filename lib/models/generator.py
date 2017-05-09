@@ -10,6 +10,7 @@ from .layers import Convolution, Deconvolution, Linear, BatchNorm
 
 # CIFAR-10
 
+"""
 class Standard32(Chain):
     def __init__(self):
         super().__init__(
@@ -62,6 +63,46 @@ class Standard28(Chain):
         h = F.tanh(self.d2(h))
         assert(h.shape[1:] == (1, 28, 28))
         return h
+"""
+
+
+class VanillaMnist(Chain):
+    def __init__(self):
+        super().__init__(
+            dc1=Deconvolution(None, 128, 7, 1, 0),
+            dc2=Deconvolution(128, 64, 4, 2, 1),
+            dc3=Deconvolution(64, 1, 4, 2, 1),
+            bn1=BatchNorm(128),
+            bn2=BatchNorm(64)
+        )
+
+    def __call__(self, z, test=False):
+        h = F.reshape(z, (z.shape[0], -1, 1, 1))
+        h = F.relu(self.bn1(self.dc1(h), test=test))
+        h = F.relu(self.bn2(self.dc2(h), test=test))
+        h = F.tanh(self.dc3(h))
+        assert(h.shape[1:] == (1, 28, 28))
+        return h
+
+
+class ResidualMnist(Chain):
+    def __init__(self, *, n=1):
+        super().__init__(
+            dc1=Deconvolution(None, 128, 7, 1, 0),
+            s=Stage(n, 128, 64, 4, 2, 1),
+            dc2=Deconvolution(64, 1, 4, 2, 1),
+            bn1=BatchNorm(128)
+        )
+        self.n = n
+
+    def __call__(self, z, test=False):
+        h = F.reshape(z, (z.shape[0], -1, 1, 1))
+        h = F.relu(self.bn1(self.dc1(h), test=test))
+        h = self.s(h, test=test)
+        h = F.tanh(self.dc2(h))
+        assert(h.shape[1:] == (1, 28, 28))
+        return h
+
 
 class Vanilla(Chain):
     def __init__(self, *, out_shape=(3, 32, 32)):
@@ -80,9 +121,9 @@ class Vanilla(Chain):
             d1=Deconvolution(256, 128, 4, 2, 1),
             d2=Deconvolution(128, 64, 4, 2, d2_pad),
             d3=Deconvolution(64, out_shape[0], 4, 2, 1),
-            bn0=L.BatchNormalization(256),
-            bn1=L.BatchNormalization(128),
-            bn2=L.BatchNormalization(64)
+            bn0=BatchNorm(256),
+            bn1=BatchNorm(128),
+            bn2=BatchNorm(64)
         )
         self.out_shape = out_shape
 
@@ -111,7 +152,7 @@ class Residual(Chain):
             s1=Stage(n, 256, 128, 4, 2, 1),
             s2=Stage(n, 128, 64, 4, 2, s2_pad),
             d1=Deconvolution(64, out_shape[0], 4, 2, 1),
-            bn0=L.BatchNormalization(256),
+            bn0=BatchNorm(256),
         )
         self.out_shape = out_shape
         self.n = n
@@ -156,9 +197,9 @@ class Block(chainer.Chain):
         super().__init__(
             d0=Deconvolution(ic, oc, ksize, stride, pad),
             d1=Deconvolution(oc, oc, 3, 1, 1),
-            bn0=L.BatchNormalization(oc),
-            bn1=L.BatchNormalization(oc),
-            bn2=L.BatchNormalization(oc),
+            bn0=BatchNorm(oc),
+            bn1=BatchNorm(oc),
+            bn2=BatchNorm(oc),
         )
         self.pad = pad
         self.stride = stride

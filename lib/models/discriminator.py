@@ -2,7 +2,6 @@ import math
 
 import chainer
 from chainer import Chain, initializers, Variable
-from chainer import links as L
 from chainer import functions as F
 from chainer import cuda
 
@@ -10,20 +9,50 @@ from .util import MinibatchDiscrimination, n_params
 
 from .layers import Convolution, Deconvolution, Linear, BatchNorm
 
-class Standard28(Chain):
-    def __init__(self, *,  wscale=0.02, use_mbd=False):
-        w = initializers.Normal(wscale)
+
+class VanillaMnist(Chain):
+    def __init__(self, *, use_mbd=False):
         super().__init__(
-            c1=Convolution(None, 64, 4, 2, 1),
+            c1=Convolution(1, 64, 4, 2, 1),
             c2=Convolution(64, 128, 4, 2, 1),
-            bn1=BatchNorm(128),
+            bn=BatchNorm(128),
             fc=Linear(None, 1)
         )
 
     def __call__(self, x, test=False):
         h = F.leaky_relu(self.c1(x))
-        h = F.leaky_relu(self.bn1(self.c2(h), test=test))
+        h = F.leaky_relu(self.bn(self.c2(h), test=test))
         h = self.fc(h)
+        return h
+
+
+class ResidualMnist(Chain):
+    # TODO: Make sure that batch norm option is passed to Stage
+    def __init__(self, *, n=1, use_bn=False, use_mbd=False):
+        super().__init__(
+            c=Convolution(1, 64, 4, 2, 1),
+            s=Stage(n, 64, 128, 4, 2, 1, skip_fst_bn=False),
+            fc=Linear(None, 1)
+        )
+        if use_mbd:
+            self.add_link('mbd_fc', Linear(None, 64))
+            self.add_link('mbd', MinibatchDiscrimination(None, 32, 8))
+
+        self.n = n
+        self.use_bn = use_bn
+        self.use_mbd = use_mbd
+
+        # print('D, batch normalization: '.format(use_bn))
+        print('D, minibatch discrimination: '.format(use_mbd))
+
+    def __call__(self, x, test=False):
+        h = F.leaky_relu(self.c(x))
+        h = self.s(h, test=test)
+        if self.use_mbd:
+            h = self.mbd_fc(h)
+            h = self.mbd(h)
+        h = self.fc(h)
+        assert(h.shape[1:] in [(1, 1, 1), (1,)])
         return h
 
 
@@ -33,8 +62,8 @@ class Vanilla(Chain):
             c0=Convolution(None, 64, 4, 2, 1),
             c1=Convolution(64, 128, 4, 2, 1),
             c2=Convolution(128, 256, 4, 2, 1),
-            bn0=L.BatchNormalization(128),
-            bn1=L.BatchNormalization(256),
+            bn0=BatchNorm(128),
+            bn1=BatchNorm(256),
             #out=Convolution2D(256, 1, 4, 1, 0),
             out=Linear(None, 1)
         )
@@ -72,7 +101,7 @@ class Residual(Chain):
             s1=Stage(n, 64, 128, 4, 2, 1, skip_fst_bn=False),
             s2=Stage(n, 128, 256, 4, 2, 1, skip_fst_bn=False),
             out=Linear(None, 1),
-            #bn0=L.BatchNormalization(256)
+            #bn0=BatchNorm(256)
         )
         self.n = n
         self.use_mbd = use_mbd
@@ -124,15 +153,15 @@ class Block(chainer.Chain):
         super().__init__(
             c0=Convolution(ic, oc, ksize, stride, pad),
             c1=Convolution(oc, oc, 3, 1, 1),
-            bn0=L.BatchNormalization(oc),
+            bn0=BatchNorm(oc),
             #c0_2=Convolution(ic, oc, ksize, stride, pad),
             #c1_2=Convolution(oc, oc, 3, 1, 1),
-            #bn1_2=L.BatchNormalization(oc)
+            #bn1_2=BatchNorm(oc)
         )
 
         if not skip_fst_bn:
-            self.add_link('bn1', L.BatchNormalization(oc))
-        self.add_link('bn2', L.BatchNormalization(oc))
+            self.add_link('bn1', BatchNorm(oc))
+        self.add_link('bn2', BatchNorm(oc))
 
         self.pad = pad
         self.transforming = stride > 1
@@ -141,21 +170,21 @@ class Block(chainer.Chain):
 
     def __call__(self, x, test=False):
         # TODO: Replace me back
-        h1 = F.leaky_relu(self.bn0(self.c0(x), test=test))
-        # h1 = F.leaky_relu(self.c0(x))
+        # h1 = F.leaky_relu(self.bn0(self.c0(x), test=test))
+        h1 = F.leaky_relu(self.c0(x))
 
         h1 = self.c1(h1)
 
         # TODO: Replace me back
-        h1 = self.bn1(h1, test=test)
+        # h1 = self.bn1(h1, test=test)
 
         # Shortcut path
         h2 = self.project(x, h1)
 
         if x.shape != h1.shape:
             # TODO: Replace me back
-             h2 = self.bn2(h2, test=test)
-            # pass
+            # h2 = self.bn2(h2, test=test)
+            pass
 
         h = h1 + h2
         # h = h1
